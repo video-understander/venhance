@@ -32,7 +32,16 @@ class Rife:
         state = torch.load(weights, map_location="cpu", weights_only=True)
         state = {k.removeprefix("module."): v for k, v in state.items()}
         net = IFNet(arch_ver=spec.arch_ver)
-        net.load_state_dict(state, strict=True)
+        # Filter out unexpected keys (e.g., teacher.* and caltime.* from rife426.pth)
+        model_keys = set(net.state_dict().keys())
+        filtered_state = {k: v for k, v in state.items() if k in model_keys}
+        missing_keys = model_keys - set(filtered_state.keys())
+        unexpected_keys = set(state.keys()) - model_keys
+        if missing_keys:
+            print(f"Warning: Missing keys in state_dict: {missing_keys}")
+        if unexpected_keys:
+            print(f"Info: Ignoring unexpected keys in state_dict: {unexpected_keys}")
+        net.load_state_dict(filtered_state, strict=True)
         if fp16 is None:
             fp16 = self.device.type in ("mps", "cuda")
         self.dtype = torch.float16 if fp16 else torch.float32
